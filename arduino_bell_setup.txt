@@ -1,0 +1,116 @@
+ 
+#include <LiquidCrystal.h>
+
+#define DS3231_I2C_ADDRESS 0x68
+// initialize the library by associating any needed LCD interface pin
+// with the arduino pin number it is connected to
+
+const int rs = 12, en = 11, d4 = 5, d5 = 4, d6 = 3, d7 = 2;
+
+LiquidCrystal lcd(rs, en, d4, d5, d6, d7);
+ 
+
+// include Wire library code (needed for I2C protocol devices)
+#include "Wire.h" 
+ 
+// LCD module connections (RS, E, D4, D5, D6, D7)
+//LiquidCrystal lcd(2, 3, 4, 5, 6, 7);
+int Relaypin = 8;
+void setup() {
+  pinMode(Relaypin,OUTPUT);
+  // set up the LCD's number of columns and rows
+  lcd.begin(16, 2);
+  Wire.begin();                                  // Join i2c bus
+
+
+}
+ 
+char Time[]     = "TIME:  :  :  ";
+char Calendar[] = "DATE:  /  /20  ";
+byte i, second, minute, hour, date, month, year;
+ 
+void DS3231_display(){
+  // Convert BCD to decimal
+  second = (second >> 4) * 10 + (second & 0x0F);
+  minute = (minute >> 4) * 10 + (minute & 0x0F);
+  hour   = (hour >> 4)   * 10 + (hour & 0x0F);
+  date   = (date >> 4)   * 10 + (date & 0x0F);
+  month  = (month >> 4)  * 10 + (month & 0x0F);
+  year   = (year >> 4)   * 10 + (year & 0x0F);
+  // End conversion
+  Time[12]     = second % 10 + 48;
+  Time[11]     = second / 10 + 48;
+  Time[9]      = minute % 10 + 48;
+  Time[8]      = minute / 10 + 48;
+  Time[6]      = hour   % 10 + 48;
+  Time[5]      = hour   / 10 + 48;
+  Calendar[14] = year   % 10 + 48;
+  Calendar[13] = year   / 10 + 48;
+  Calendar[9]  = month  % 10 + 48;
+  Calendar[8]  = month  / 10 + 48;
+  Calendar[6]  = date   % 10 + 48;
+  Calendar[5]  = date   / 10 + 48;
+  lcd.setCursor(0, 0);
+  lcd.print(Time);                               // Display time
+  lcd.setCursor(0, 1);
+  lcd.print(Calendar);                           // Display calendar
+}
+
+void displayActual(int gap){
+  for(int j=2000;j<gap;j+=50){
+    displayTime();
+  }  
+}
+
+
+void displayTime(){
+    Wire.beginTransmission(0x68);                 // Start I2C protocol with DS3231 address
+    Wire.write(0);                                // Send register address
+    Wire.endTransmission(false);                  // I2C restart
+    Wire.requestFrom(0x68, 7);                    // Request 7 bytes from DS3231 and release I2C bus at end of reading
+    second = Wire.read();                         // Read seconds from register 0
+    minute = Wire.read();                         // Read minuts from register 1
+    hour   = Wire.read();                         // Read hour from register 2
+    Wire.read();                                  // Read day from register 3 (not used)
+    date   = Wire.read();                         // Read date from register 4
+    month  = Wire.read();                         // Read month from register 5
+    year   = Wire.read();                         // Read year from register 6
+    DS3231_display();                             // Diaplay time & calendar
+    delay(50);                                    // Wait 50ms
+}
+
+
+void loop() {
+ 
+    
+    displayTime();
+
+   if(hour>=9 && hour<=18){
+      if(second==0 && minute==0 && (hour==10 || hour==12 || hour==15 || hour==17)){
+        //10:00 12:00 15:00 17:00
+        digitalWrite(Relaypin, HIGH); 
+        delay(6000);
+       // displayActual(7000);  
+        
+      }else if(second==0 && minute==45 && (hour==12 || hour==14)){
+        //12:45 14:45 
+        digitalWrite(Relaypin, HIGH); 
+        delay(6000);
+        //displayActual(7000);     
+      }else if(second==0 && minute==0 && (hour==11 || hour==16)){
+        //11:00 16:00
+        digitalWrite(Relaypin, HIGH); 
+        delay(4000);
+        //displayActual(5000); 
+      }else if((second==0 || second==15 || second==30) &&  minute==32  && hour==13 ){
+        //13:45
+        digitalWrite(Relaypin, HIGH); 
+        delay(4000);
+        //displayActual(5000); 
+      }
+      else{
+        digitalWrite(Relaypin, LOW); // Makes the signal low
+      }
+    }
+
+}
